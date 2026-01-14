@@ -9,5 +9,9 @@ public interface PackOption {
 
     String getDisplayType();
 
+    String getChallengeName();
+
+    String getChallengeType();
+
     void onChosen(RoguelitePlugin plugin);
 }

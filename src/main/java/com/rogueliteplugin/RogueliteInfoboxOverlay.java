@@ -1,11 +1,13 @@
 package com.rogueliteplugin;
+
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.components.LineComponent;
 import net.runelite.client.ui.overlay.components.PanelComponent;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
+import net.runelite.client.ui.overlay.components.ProgressBarComponent;
+
+import java.awt.*;
 
 public class RogueliteInfoboxOverlay extends Overlay {
     private final RoguelitePlugin plugin;
@@ -21,24 +23,38 @@ public class RogueliteInfoboxOverlay extends Overlay {
     public Dimension render(Graphics2D graphics) {
         panelComponent.getChildren().clear();
 
-        panelComponent.getChildren().add(LineComponent.builder()
-                .left("XP to Next Point:")
-                .right(Integer.toString(plugin.getXpToNextPoint()))
-                .build());
-
-        if (plugin.getCurrentPoints() == 1)
-        {
+        if (plugin.anyChallengeActive()) {
+            long currentProgress = plugin.getCurrentChallengeProgress();
+            long challengeGoal = plugin.getCurrentChallengeGoal();
             panelComponent.getChildren().add(LineComponent.builder()
-                    .left("You can buy a new pack!")
+                    .left("Current challenge")
+                    .right("Progress")
                     .build());
-        }
-        if (plugin.getCurrentPoints() > 1)
-        {
+
             panelComponent.getChildren().add(LineComponent.builder()
-                    .left("You can buy " + plugin.getCurrentPoints() + " new packs!")
+                    .left(plugin.getCurrentChallengeFormatted())
+                    .right(currentProgress + "")
+                    .build());
+
+            panelComponent.getChildren().add(LineComponent.builder().build());
+
+            ProgressBarComponent bar = new ProgressBarComponent();
+            bar.setMinimum(0);
+            bar.setMaximum(challengeGoal);
+            bar.setValue(currentProgress);
+            bar.setPreferredSize(new Dimension(220, 12));
+            if (currentProgress >= challengeGoal)
+                bar.setForegroundColor(new Color(0, 170, 0));
+            else
+                bar.setForegroundColor(new Color(255, 152, 31));
+
+            panelComponent.getChildren().add(bar);
+        } else {
+            panelComponent.getChildren().add(LineComponent.builder()
+                    .left("Challenge complete! You can get a new card pack in the panel.")
                     .build());
         }
 
         return panelComponent.render(graphics);
     }
-    }
+}

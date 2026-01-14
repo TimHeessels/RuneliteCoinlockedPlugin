@@ -1,25 +1,26 @@
 package com.rogueliteplugin.ui;
 
-import com.rogueliteplugin.pack.PackOption;
-
 import javax.swing.*;
 import java.awt.*;
 
-public class PackOptionButton extends JButton
-{
-    private static final int CARD_WIDTH = 150;
-    private static final int CARD_HEIGHT = 150;
+public class PackOptionButton extends JButton {
+    private static final int CARD_WIDTH = 120;
+    private static final int CARD_HEIGHT = 190;
 
     private float alpha = 1f;
-    private final String label;
-    private final String type;
-    private final Icon icon;
+    private final String unlockTitle;
+    private final String unlockType;
+    private final Icon unlockIcon;
 
-    public PackOptionButton(String label, String type, Icon icon)
-    {
-        this.label = label;
-        this.icon = icon;
-        this.type = type;
+    private final String challengeTitle;
+    private final String challengeType;
+
+    public PackOptionButton(String unlockTitle, String unlockType, String challengeTitle, String challengeType, Icon unlockIcon) {
+        this.unlockTitle = unlockTitle;
+        this.unlockIcon = unlockIcon;
+        this.unlockType = unlockType;
+        this.challengeTitle = challengeTitle;
+        this.challengeType = challengeType;
 
         Dimension size = new Dimension(CARD_WIDTH, CARD_HEIGHT);
         setPreferredSize(size);
@@ -38,36 +39,37 @@ public class PackOptionButton extends JButton
         showBack();
     }
 
-    public void showBack()
-    {
+    public void showBack() {
         setText("?");
         setIcon(null);
     }
 
-    public void reveal()
-    {
+    public void reveal() {
         setText("<html><center>"
-                + label + "<br>"
-                + "<span style='font-size:9px; color:#888888;'>"
-                + type.toString()
-                + "</span>"
+                + "<span style='font-size:14px; color:#46a720;'>"
+                + "Unlock<br>"
+                + unlockType+ "<br>"
+                + unlockTitle + "</span><br><br>"
+                + "<span style='font-size:14px; color:#4656ff;'>"
+                + "Next challenge<br>"
+                + challengeType + "<br>"
+                + challengeTitle
+                + "</span><br>"
                 + "</center></html>");
 
-        setIcon(icon);
+        setIcon(unlockIcon);
         setVerticalTextPosition(SwingConstants.BOTTOM);
         setHorizontalTextPosition(SwingConstants.CENTER);
         setEnabled(true);
     }
 
-    public void setAlpha(float alpha)
-    {
+    public void setAlpha(float alpha) {
         this.alpha = alpha;
         repaint();
     }
 
     @Override
-    protected void paintComponent(Graphics g)
-    {
+    protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setComposite(
                 AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha)

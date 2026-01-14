@@ -1,21 +1,23 @@
 package com.rogueliteplugin;
 
-import java.awt.*;
-import java.awt.image.BufferedImage;
 import java.util.*;
 import javax.inject.Inject;
-import javax.swing.*;
 
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.google.inject.Provides;
+import com.rogueliteplugin.challenge.*;
 import com.rogueliteplugin.pack.PackOption;
 import com.rogueliteplugin.pack.UnlockPackOption;
+import com.rogueliteplugin.requirements.AppearRequirement;
 import com.rogueliteplugin.unlocks.*;
 import net.runelite.api.*;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.HitsplatApplied;
 import net.runelite.client.callback.ClientThread;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.events.GameStateChanged;
@@ -23,6 +25,7 @@ import net.runelite.api.events.StatChanged;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.ServerNpcLoot;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SkillIconManager;
 import net.runelite.client.plugins.Plugin;
@@ -43,10 +46,14 @@ public class RoguelitePlugin extends Plugin {
     @Inject
     private Client client;
 
+    public Client getClient() {
+        return client;
+    }
+
     @Inject
     private SpriteManager spriteManager;
-    public SpriteManager getSpriteManager()
-    {
+
+    public SpriteManager getSpriteManager() {
         return spriteManager;
     }
 
@@ -54,10 +61,13 @@ public class RoguelitePlugin extends Plugin {
     private ClientThread clientThread;
 
     @Inject
+    private ItemManager itemManager;
+
+    @Inject
     private OverlayManager overlayManager;
 
     @Inject
-    private ItemManager itemManager;
+    private ChallengeManager challengeManager;
 
     @Inject
     private SkillBlocker skillBlocker;
@@ -76,10 +86,6 @@ public class RoguelitePlugin extends Plugin {
 
     private static final int XP_PER_POINT = 50;
     private Map<Skill, Integer> previousXp = new EnumMap<>(Skill.class);
-
-    private long totalXpGained;
-    private int totalPoints;
-    private int pointsSpent;
 
     private final RogueliteInfoboxOverlay overlay = new RogueliteInfoboxOverlay(this);
 
@@ -104,11 +110,22 @@ public class RoguelitePlugin extends Plugin {
     }
 
     private UnlockRegistry unlockRegistry;
-    public UnlockRegistry getUnlockRegistry()
-    {
+
+    public UnlockRegistry getUnlockRegistry() {
         return unlockRegistry;
     }
+
+    private ChallengeRegistry challengeRegistry;
+
+    public ChallengeRegistry getChallengeRegistry() {
+        return challengeRegistry;
+    }
+
     private final Set<String> unlockedIds = new HashSet<>();
+
+    public Set<String> getUnlockedIds() {
+        return unlockedIds;
+    }
 
     @Provides
     RogueliteConfig provideConfig(ConfigManager configManager) {
@@ -117,18 +134,27 @@ public class RoguelitePlugin extends Plugin {
 
     @Override
     protected void startUp() throws Exception {
-        overlayManager.add(overlay);
-        eventBus.register(skillBlocker);
-
-        totalXpGained = config.totalXpGained();
-        totalPoints = config.totalPoints();
-        pointsSpent = config.pointsSpent();
-
         //Setup all unlockable stuff
         unlockRegistry = new UnlockRegistry();
         UnlockDefinitions.registerAll(unlockRegistry, skillIconManager, this);
+
+        //Setup all possible challenges
+        challengeRegistry = new ChallengeRegistry();
+        ChallengeDefinitions.registerAll(challengeRegistry, skillIconManager, this);
+
+        //Load current challenge state
+        challengeManager.loadFromConfig(config, client, challengeRegistry);
+
+        overlayManager.add(overlay);
+        eventBus.register(skillBlocker);
+
         loadUnlocked();
 
+        //Check if HP is unlocked (it should always be unlocked)
+        if (!unlockedIds.contains("SKILL_HITPOINTS"))
+            unlock("SKILL_HITPOINTS");
+
+        //Build the panel
         panel = new RoguelitePanel(this);
         navButton = NavigationButton.builder()
                 .tooltip("Roguelite")
@@ -168,12 +194,62 @@ public class RoguelitePlugin extends Plugin {
     public void onGameStateChanged(GameStateChanged event) {
         if (event.getGameState() == GameState.LOGGED_IN) {
             log.debug("Welcome!");
-            if (panel != null)
-            {
+            if (panel != null) {
                 panel.refresh();
             }
         }
     }
+
+    @Subscribe
+    public void onGameTick(GameTick tick) {
+        ChallengeState state = challengeManager.getCurrent();
+        if (state == null)
+            return;
+
+        Challenge challenge = state.getChallenge();
+
+        if (!(challenge instanceof WalkChallenge))
+            return;
+
+        if (client.getLocalPlayer() == null)
+            return;
+
+        WalkChallenge walk = (WalkChallenge) challenge;
+
+        WorldPoint current = client.getLocalPlayer().getWorldLocation();
+        int walked = walk.countMovement(current);
+
+        if (walked > 0) {
+            challengeManager.increment(walked);
+        }
+    }
+
+    @Subscribe
+    public void onHitsplatApplied(HitsplatApplied event) {
+        ChallengeState state = challengeManager.getCurrent();
+        if (state == null)
+            return;
+
+        Challenge challenge = state.getChallenge();
+        if (!(challenge instanceof OneHpAfterDamageChallenge))
+            return;
+
+        if (client.getLocalPlayer() == null)
+            return;
+
+        // Only count hitsplats applied to the local player
+        if (event.getActor() != client.getLocalPlayer())
+            return;
+
+        int damage = event.getHitsplat().getAmount();
+        if (damage <= 0)
+            return;
+
+        int currentHp = client.getBoostedSkillLevel(Skill.HITPOINTS);
+        if (currentHp == 1)
+            challengeManager.increment(1);
+    }
+
 
     @Subscribe
     public void onStatChanged(StatChanged event) {
@@ -198,97 +274,32 @@ public class RoguelitePlugin extends Plugin {
             showChatMessage("You now have a total of " + newValue + " illegal XP.");
             return;
         }
-        addXp(delta);
+
+        ChallengeState state = challengeManager.getCurrent();
+        if (state == null)
+            return;
+
+        Challenge challenge = state.getChallenge();
+
+        if (challenge.handleXp(event, state))
+            challengeManager.increment(delta);
     }
 
     @Subscribe
-    public void onGameTick(GameTick tick)
-    {
-        Player player = client.getLocalPlayer();
-        if (player == null)
-        {
+    public void onServerNpcLoot(final ServerNpcLoot event) {
+        ChallengeState state = challengeManager.getCurrent();
+        if (state == null)
             return;
-        }
 
-        int regionId = player.getWorldLocation().getRegionID();
+        Challenge challenge = state.getChallenge();
 
-        if (!isRegionUnlocked(regionId))
-        {
-            warnLockedRegion(regionId);
-        }
-    }
-
-    public boolean isInLockedRegion()
-    {
-        if (client.getLocalPlayer() == null)
-        {
-            return false;
-        }
-
-        int regionId = client.getLocalPlayer()
-                .getWorldLocation()
-                .getRegionID();
-
-        return !isRegionUnlocked(regionId);
-    }
-
-    private int lastWarnedRegion = -1;
-
-    private void warnLockedRegion(int regionId)
-    {
-        if (regionId == lastWarnedRegion)
-        {
-            return;
-        }
-
-        lastWarnedRegion = regionId;
-
-        client.addChatMessage(
-                ChatMessageType.GAMEMESSAGE,
-                "",
-                "⚠ You are in a locked region.",
-                null
-        );
-    }
-
-    private void addXp(int xp) {
-        totalXpGained += xp;
-        config.totalXpGained(totalXpGained);
-
-        int xpToNextPoint = config.xpToNextPoint();
-        if (xpToNextPoint <= 0)
-            xpToNextPoint = 2500; // default fallback
-
-        int newTotalPoints = (int) (totalXpGained / xpToNextPoint);
-
-        if (newTotalPoints > totalPoints) {
-            int gained = newTotalPoints - totalPoints;
-            totalPoints = newTotalPoints;
-            config.totalPoints(totalPoints);
-            showChatMessage("You've earned " + gained + " point(s)! Total: " + getCurrentPoints());
-        } else if (newTotalPoints < totalPoints) {
-            // Something went wrong (config was edited, data corruption, or XP reset)
-            int oldtotal = totalPoints;
-            totalPoints = newTotalPoints;
-            config.totalPoints(totalPoints);
-
-            showChatMessage("You've earned one or more points but the Total points exceeded by config.");
-            showChatMessage("Resetting total points to " + newTotalPoints + " (From " + oldtotal + ")");
-        }
-
-        if (panel != null) {
-            panel.refresh();
-        }
-
-        log.debug("Added {} xp, total xp: {}, xp to next point: {}. new total points: {}, current total points: {}", xp, totalXpGained, xpToNextPoint, newTotalPoints, totalPoints);
+        //Check drop related challenges (handleNpcLoot is overridden on specific challenges)
+        if (challenge.handleNpcLoot(event, state, itemManager))
+            challengeManager.increment(1);
     }
 
     private void showChatMessage(String message) {
         client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "", message, null);
-    }
-
-    public int getCurrentPoints() {
-        return totalPoints - pointsSpent;
     }
 
     public void onBuyPackClicked() {
@@ -297,10 +308,15 @@ public class RoguelitePlugin extends Plugin {
 
         clientThread.invoke(() ->
         {
-            if (getCurrentPoints() < 1)
+            if (anyChallengeActive())
                 return;
-            pointsSpent++;
-            config.pointsSpent(pointsSpent);
+
+            if (!playerIsLoggedIn()) {
+                if (panel != null) {
+                    panel.refresh();
+                }
+                return;
+            }
             generatePackOptions();
             packChoiceState = PackChoiceState.CHOOSING;
 
@@ -332,35 +348,66 @@ public class RoguelitePlugin extends Plugin {
         });
     }
 
-    public int getXpToNextPoint() {
-        int xpToNextPoint = 1; //fallback for invalid values
-        if (config.xpToNextPoint() > 0)
-            xpToNextPoint = config.xpToNextPoint();
+    public boolean canAppearAsPackOption(Unlock unlock) {
+        if (unlock == null || unlockRegistry == null) {
+            return false;
+        }
 
-        return xpToNextPoint - ((int) totalXpGained % xpToNextPoint);
+        // Already unlocked → should NOT appear as pack option
+        if (isUnlocked(unlock)) {
+            return false;
+        }
+
+        List<AppearRequirement> reqs = unlock.getRequirements();
+        if (reqs == null || reqs.isEmpty()) {
+            return true;
+        }
+
+        for (AppearRequirement req : reqs) {
+            try {
+                if (!req.isMet(this)) {
+                    return false;
+                }
+            } catch (Exception e) {
+                // Defensive: never let UI crash because of requirements
+                return false;
+            }
+        }
+        return true;
     }
 
-    private void generatePackOptions() {
-        List<Unlock> locked = unlockRegistry.getAll().stream()
-                .filter(u -> !unlockedIds.contains(u.getId()))
-                .collect(Collectors.toList());
+    public boolean canAppearAsPackChallenge(Challenge challenge) {
+        if (challenge == null || challengeRegistry == null) {
+            return false;
+        }
 
-        Collections.shuffle(locked);
+        List<AppearRequirement> reqs = challenge.getRequirements();
+        if (reqs == null || reqs.isEmpty()) {
+            return true;
+        }
 
-        currentPackOptions = locked.stream()
-                .limit(4)
-                .map(UnlockPackOption::new)
-                .collect(Collectors.toList());
+        for (AppearRequirement req : reqs) {
+            try {
+                if (!req.isMet(this)) {
+                    return false;
+                }
+            } catch (Exception e) {
+                // Defensive: never let UI crash because of requirements
+                return false;
+            }
+        }
+        return true;
     }
 
-    public Map<UnlockType, List<Unlock>> getUnlockedByType()
-    {
+    public boolean isSkillUnlocked(Skill skill) {
+        return unlockedIds.contains("SKILL_" + skill.name());
+    }
+
+    public Map<UnlockType, List<Unlock>> getUnlockedByType() {
         Map<UnlockType, List<Unlock>> map = new EnumMap<>(UnlockType.class);
 
-        for (Unlock unlock : unlockRegistry.getAll())
-        {
-            if (unlockedIds.contains(unlock.getId()))
-            {
+        for (Unlock unlock : unlockRegistry.getAll()) {
+            if (unlockedIds.contains(unlock.getId())) {
                 map.computeIfAbsent(unlock.getType(), t -> new ArrayList<>())
                         .add(unlock);
             }
@@ -369,19 +416,16 @@ public class RoguelitePlugin extends Plugin {
         return map;
     }
 
-    private void loadUnlocked()
-    {
+    private void loadUnlocked() {
         unlockedIds.clear();
 
         String raw = config.unlockedIds();
-        if (!raw.isEmpty())
-        {
+        if (!raw.isEmpty()) {
             unlockedIds.addAll(Arrays.asList(raw.split(",")));
         }
     }
 
-    private void saveUnlocked()
-    {
+    private void saveUnlocked() {
         configManager.setConfiguration(
                 RogueliteConfig.GROUP,
                 "unlockedIds",
@@ -389,49 +433,105 @@ public class RoguelitePlugin extends Plugin {
         );
     }
 
-    public boolean isSkillUnlocked(Skill skill)
-    {
-        return unlockedIds.contains("skill:" + skill.name());
+    public boolean isUnlocked(String unlockId) {
+        Unlock unlock = unlockRegistry.get(unlockId);
+        if (unlock == null) {
+            return false;
+        }
+
+        return isUnlocked(unlock);
     }
 
-    public void unlock(Unlock unlock)
-    {
-        if (unlockedIds.add(unlock.getId()))
-        {
+    public boolean isUnlocked(Unlock unlock) {
+        return unlockedIds.contains(unlock.getId());
+    }
+
+    public void unlock(String unlockID) {
+        if (unlockedIds.add(unlockID)) {
             saveUnlocked();
 
             skillBlocker.refreshAll();
 
-            if (panel != null)
-            {
+            if (panel != null) {
                 panel.refresh();
             }
         }
     }
 
-    public boolean isRegionUnlocked(int regionId)
-    {
-        for (Unlock unlock : unlockRegistry.getAll())
-        {
-            if (!(unlock instanceof RegionUnlock))
-            {
-                continue;
-            }
-
-            RegionUnlock regionUnlock = (RegionUnlock) unlock;
-
-            if (isUnlocked(unlock) && regionUnlock.containsRegion(regionId))
-            {
-                return true;
-            }
-        }
-
-        return false;
+    public void setActiveChallenge(Challenge activeChallenge) {
+        challengeManager.startChallenge(activeChallenge, getBalancedChallengeAmount(activeChallenge.getLowAmount(), activeChallenge.getHighAmount()));
     }
 
+    public String getCurrentChallengeFormatted() {
+        return challengeManager.getChallengeFormatted();
+    }
 
-    public boolean isUnlocked(Unlock unlock)
-    {
-        return unlockedIds.contains(unlock.getId());
+    public long getCurrentChallengeProgress() {
+        return challengeManager.getCurrent().getProgress();
+    }
+
+    public long getCurrentChallengeGoal() {
+        return challengeManager.getCurrent().getGoal();
+    }
+
+    public boolean anyChallengeActive() {
+        return challengeManager.hasActiveChallenge();
+    }
+
+    public boolean playerIsLoggedIn() {
+        return client.getLocalPlayer() != null;
+    }
+
+    private void generatePackOptions() {
+        List<Unlock> locked = unlockRegistry.getAll().stream()
+                .filter(u -> !unlockedIds.contains(u.getId()))
+                .filter(this::canAppearAsPackOption)
+                .collect(Collectors.toList());
+        Collections.shuffle(locked);
+
+        int optionCount = Math.min(4, locked.size());
+
+        currentPackOptions = IntStream.range(0, optionCount)
+                .mapToObj(i -> {
+                    Unlock unlock = locked.get(i);
+
+                    // base unlocks + this card's unlock
+                    Set<String> hypotheticalUnlocks = new HashSet<>(unlockedIds);
+                    hypotheticalUnlocks.add(unlock.getId());
+
+                    List<Challenge> validChallenges =
+                            challengeRegistry.getAll().stream()
+                                    .filter(c -> c.isValidWithUnlocks(hypotheticalUnlocks))
+                                    .collect(Collectors.toList());
+
+                    Challenge challenge = validChallenges.isEmpty()
+                            ? null
+                            : validChallenges.get(random.nextInt(validChallenges.size()));
+
+                    return new UnlockPackOption(unlock, challenge);
+                })
+                .collect(Collectors.toList());
+    }
+
+    public int getBalancedChallengeAmount(int min, int max) {
+        Player player = client.getLocalPlayer();
+        if (player == null) {
+            return min;
+        }
+
+        int combatLevel = player.getCombatLevel();
+        float normalized = combatLevel / 126f;
+
+        // Steep power curve (fits your anchors)
+        float curve = (float) Math.pow(normalized, 6.4);
+
+        int base = min + Math.round(curve * (max - min));
+
+        // ±5% variation
+        float jitter = 1f + (random.nextFloat() - 0.5f) * 0.10f * normalized;
+        int result = Math.round(base * jitter);
+
+        // Safety clamp
+        return Math.max(min, Math.min(max, result));
     }
 }

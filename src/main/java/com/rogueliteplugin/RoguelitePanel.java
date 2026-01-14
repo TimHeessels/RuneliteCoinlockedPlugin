@@ -2,6 +2,7 @@ package com.rogueliteplugin;
 
 import com.rogueliteplugin.pack.PackOption;
 import com.rogueliteplugin.pack.UnlockPackOption;
+import com.rogueliteplugin.requirements.AppearRequirement;
 import com.rogueliteplugin.ui.PackOptionButton;
 import com.rogueliteplugin.unlocks.*;
 import net.runelite.client.ui.PluginPanel;
@@ -9,12 +10,12 @@ import net.runelite.api.Client;
 import com.google.inject.Inject;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
-import java.util.EnumMap;
+import java.text.NumberFormat;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 
 public class RoguelitePanel extends PluginPanel {
     private final RoguelitePlugin plugin;
@@ -109,44 +110,55 @@ public class RoguelitePanel extends PluginPanel {
 
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
-        int points = plugin.getCurrentPoints();
-
-        content.add(new JLabel("Current Points: " + points));
+        if (plugin.anyChallengeActive()) {
+            content.add(new JLabel("Complete the challenge to"));
+            content.add(new JLabel("unlock a new booster pack."));
+        } else
+            content.add(new JLabel("You can unlock a new booster pack!"));
         content.add(Box.createVerticalStrut(6));
-        content.add(new JLabel("XP to Next Point: " + plugin.getXpToNextPoint()));
-        content.add(Box.createVerticalStrut(12));
 
-        if (plugin.getPackChoiceState() == PackChoiceState.NONE) {
-            JButton buyButton = new JButton("Buy new pack");
-            buyButton.setEnabled(points >= 1);
-            buyButton.addActionListener(e -> plugin.onBuyPackClicked());
-            content.add(buyButton);
-        } else if (plugin.getPackChoiceState() == PackChoiceState.CHOOSING) {
-            content.add(new JLabel("Choose a card:"));
-            content.add(Box.createVerticalStrut(8));
+        if (plugin.playerIsLoggedIn()) {
 
-            for (PackOption option : plugin.getCurrentPackOptions()) {
-                Unlock unlock = ((UnlockPackOption) option).getUnlock();
+            if (plugin.getPackChoiceState() == PackChoiceState.NONE) {
+                JButton buyButton = new JButton("Buy new pack");
+                buyButton.setEnabled(!plugin.anyChallengeActive());
+                buyButton.addActionListener(e -> plugin.onBuyPackClicked());
+                content.add(buyButton);
+            } else if (plugin.getPackChoiceState() == PackChoiceState.CHOOSING) {
+                content.add(new JLabel("Choose a card:"));
+                content.add(Box.createVerticalStrut(8));
 
-                Icon icon = resolveIcon(unlock);
+                for (PackOption option : plugin.getCurrentPackOptions()) {
+                    Unlock unlock = ((UnlockPackOption) option).getUnlock();
+                    Icon icon = resolveIcon(unlock);
+                    int balancedAmount = plugin.getBalancedChallengeAmount(((UnlockPackOption) option).getChallengeLowAmount(), ((UnlockPackOption) option).getChallengeHighAmount());
+                    String challengeName = option.getChallengeName().replace("$", NumberFormat
+                            .getInstance(new Locale("nl", "NL"))
+                            .format(balancedAmount));
 
-                PackOptionButton button = new PackOptionButton(
-                        option.getDisplayName(),
-                        option.getDisplayType(),
-                        icon
-                );
-                button.setAlignmentX(Component.LEFT_ALIGNMENT);
-                button.setMaximumSize(
-                        new Dimension(Integer.MAX_VALUE, button.getPreferredSize().height)
-                );
-                button.addActionListener(e -> plugin.onPackOptionSelected(option));
+                    PackOptionButton button = new PackOptionButton(
+                            option.getDisplayName(),
+                            option.getDisplayType(),
+                            challengeName,
+                            option.getChallengeType(),
+                            icon
+                    );
+                    button.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    button.setMaximumSize(
+                            new Dimension(Integer.MAX_VALUE, button.getPreferredSize().height)
+                    );
+                    button.addActionListener(e -> plugin.onPackOptionSelected(option));
 
-                optionButtons.add(button);
-                content.add(button);
-                content.add(Box.createVerticalStrut(6));
+                    optionButtons.add(button);
+                    content.add(button);
+                    content.add(Box.createVerticalStrut(6));
+                }
+
+                animateReveal();
             }
-
-            animateReveal();
+        } else {
+            content.add(new JLabel("You need to be logged in to buy card packs!"));
+            content.add(Box.createVerticalStrut(6));
         }
 
         //Rules
@@ -162,9 +174,10 @@ public class RoguelitePanel extends PluginPanel {
         JLabel rulesText = new JLabel(
                 "<html>"
                         + "<b>Rules</b><br>"
-                        + "• For each certain amount of XP (set in config) you may open a pack.<br>"
+                        + "• Complete the active challenge to open a booster pack.<br>"
                         + "• Packs contain cards that unlock a range of content, see the list on this page to see what you have access to.<br>"
                         + "• Blocked content is not physically blocked as that is against runescape rules, but it is indicated as best as possible.<br>"
+                        + "• Each card also contains a new challenge, so pick wisely.<br>"
                         + "</html>"
         );
         rulesText.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -239,6 +252,7 @@ public class RoguelitePanel extends PluginPanel {
 
             for (Unlock unlock : list) {
                 boolean unlocked = plugin.isUnlocked(unlock);
+                boolean meetsRequirements = plugin.canAppearAsPackOption(unlock);
 
                 Icon icon = resolveIcon(unlock);
 
@@ -257,15 +271,16 @@ public class RoguelitePanel extends PluginPanel {
                 textLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
                 if (!unlocked) {
-                    textLabel.setForeground(new Color(170, 60, 60));
+                    if (meetsRequirements)
+                        textLabel.setForeground(new Color(128, 128, 128));
+                    else
+                        textLabel.setForeground(new Color(170, 60, 60));
                     if (icon != null)
                         iconLabel.setEnabled(false);
-                }
-                else
+                } else
                     textLabel.setForeground(new Color(70, 167, 32));
 
-                textLabel.setToolTipText(unlock.getDescription());
-
+                applyTooltip(textLabel, unlock);
 // Assemble row
                 row.add(iconLabel);
                 row.add(Box.createHorizontalStrut(6));
@@ -275,6 +290,42 @@ public class RoguelitePanel extends PluginPanel {
             }
             content.add(Box.createVerticalStrut(8));
         }
+    }
+
+    private void applyTooltip(JLabel label, Unlock unlock) {
+        StringBuilder sb = new StringBuilder("<html>");
+
+        sb.append("<b>")
+                .append(unlock.getDisplayName())
+                .append("</b><br>")
+                .append(unlock.getDescription());
+
+        List<AppearRequirement> reqs = unlock.getRequirements();
+        if (reqs != null && !reqs.isEmpty()) {
+            sb.append("<br><br><b>Requirements:</b><br>");
+
+            for (AppearRequirement req : reqs) {
+                boolean met = false;
+
+                try {
+                    if (plugin != null) {
+                        met = req.isMet(plugin);
+                    }
+                } catch (Exception | AssertionError e) {
+                    // Treat as not met if plugin state is not ready
+                    met = false;
+                }
+
+                sb.append(met ? "• " : "• <font color='red'>")
+                        .append(req.getDescription())
+                        .append(met ? "" : "</font>")
+                        .append("<br>");
+            }
+        }
+
+        sb.append("</html>");
+
+        label.setToolTipText(sb.toString());
     }
 
     private Icon resolveIcon(Unlock unlock) {

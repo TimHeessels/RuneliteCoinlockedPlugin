@@ -1,12 +1,14 @@
 package com.rogueliteplugin.unlocks;
 
 import com.rogueliteplugin.RoguelitePlugin;
+import com.rogueliteplugin.requirements.CombatLevelRequirement;
+import com.rogueliteplugin.requirements.RequiresUnlockRequirement;
 import net.runelite.api.Skill;
 import net.runelite.api.SpriteID;
 import net.runelite.client.game.SkillIconManager;
 
 import java.awt.image.BufferedImage;
-import java.util.Set;
+import java.util.List;
 
 public final class UnlockDefinitions {
     private UnlockDefinitions() {
@@ -18,11 +20,11 @@ public final class UnlockDefinitions {
             RoguelitePlugin plugin
     ) {
         registerSkills(registry, skillIconManager);
-        registerRegions(registry, plugin);
         registerClueTiers(registry);
         registerShops(registry, plugin);
         registerMinigames(registry, plugin);
         registerBosses(registry);
+        registerTransport(registry);
     }
 
     private static void registerSkills(
@@ -37,13 +39,25 @@ public final class UnlockDefinitions {
         }
     }
 
+    private static void registerTransport(UnlockRegistry registry) {
+        registry.register(
+                new TransportUnlock(
+                        "FairyRings",
+                        "Fairy rings",
+                        IconLoader.load("clues/beginnerclue.png"),
+                        "Allows the use of fairy rings."
+                )
+        );
+    }
+
     private static void registerClueTiers(UnlockRegistry registry) {
         registry.register(
                 new ClueUnlock(
                         "BEGINNERCLUES",
                         "Beginner clues",
                         IconLoader.load("clues/beginnerclue.png"),
-                        "Allows opening of beginner clue caskets."
+                        "Allows opening of beginner clue caskets.",
+                        List.of()
                 )
         );
         registry.register(
@@ -51,7 +65,10 @@ public final class UnlockDefinitions {
                         "EASYCLUES",
                         "Easy clues",
                         IconLoader.load("clues/easyclue.png"),
-                        "Allows opening of easy clue caskets."
+                        "Allows opening of easy clue caskets.",
+                        List.of(
+                                new RequiresUnlockRequirement("BEGINNERCLUES")
+                        )
                 )
         );
         registry.register(
@@ -59,7 +76,10 @@ public final class UnlockDefinitions {
                         "MEDIUMCLUES",
                         "Medium clues",
                         IconLoader.load("clues/mediumclue.png"),
-                        "Allows opening of hard clue caskets."
+                        "Allows opening of hard clue caskets.",
+                        List.of(
+                                new RequiresUnlockRequirement("EASYCLUES")
+                        )
                 )
         );
         registry.register(
@@ -67,7 +87,10 @@ public final class UnlockDefinitions {
                         "HARDCLUES",
                         "Hard clues",
                         IconLoader.load("clues/hardclue.png"),
-                        "Allows opening of hard clue caskets."
+                        "Allows opening of hard clue caskets.",
+                        List.of(
+                                new RequiresUnlockRequirement("MEDIUMCLUES")
+                        )
                 )
         );
         registry.register(
@@ -75,7 +98,10 @@ public final class UnlockDefinitions {
                         "ELITECLUES",
                         "Elite clues",
                         IconLoader.load("clues/eliteclue.png"),
-                        "Allows opening of elite clue caskets."
+                        "Allows opening of elite clue caskets.",
+                        List.of(
+                                new RequiresUnlockRequirement("HARDCLUES")
+                        )
                 )
         );
         registry.register(
@@ -83,39 +109,11 @@ public final class UnlockDefinitions {
                         "MASTERCLUES",
                         "Master clues",
                         IconLoader.load("clues/masterclue.png"),
-                        "Allows opening of master clue caskets."
-                )
+                        "Allows opening of master clue caskets.",
+                        List.of(
+                                new RequiresUnlockRequirement("ELITECLUES")
+                        ))
         );
-    }
-
-    private static void registerRegions(UnlockRegistry registry, RoguelitePlugin plugin)
-    {
-        registry.register(new RegionUnlock(
-                "MISthalin",
-                "Misthalin",
-                Set.of(
-                        12850, 12851, // Lumbridge
-                        13106, 13107, // Varrock
-                        12849, 13105  // Draynor
-                ),
-                new ImageUnlockIcon(
-                        IconLoader.load("areas/misthalin.png")
-                ),
-                "Allows access to Misthalin."
-        ));
-
-        registry.register(new RegionUnlock(
-                "KARAMJA",
-                "Karamja",
-                Set.of(
-                        11057, 11058,
-                        11313, 11314
-                ),
-                new ImageUnlockIcon(
-                        IconLoader.load("areas/karamja.png")
-                ),
-                "Allows access to Karamja."
-        ));
     }
 
     private static void registerMinigames(UnlockRegistry registry, RoguelitePlugin plugin) {
@@ -137,7 +135,7 @@ public final class UnlockDefinitions {
         );
         registry.register(
                 new MinigameUnlock(
-                        "Temple_Trekking)",
+                        "Temple_Trekking",
                         "Temple Trekking",
                         IconLoader.load("minigames/Temple_Trekking_logo.png"),
                         "Allows access to the Temple Trekking minigame"
@@ -434,7 +432,10 @@ public final class UnlockDefinitions {
     }
 
     private static void registerBosses(UnlockRegistry registry) {
-        registry.register(new BossUnlock("MIMIC", "Mimic", IconLoader.load("icon.png"), "Fight the Mimic."));
+        registry.register(new BossUnlock("MIMIC", "Mimic", IconLoader.load("icon.png"), "Fight the Mimic.", List.of(
+                new CombatLevelRequirement(20)
+        )));
+        /*
         registry.register(new BossUnlock("OBOR", "Obor", IconLoader.load("icon.png"), "Hill giant boss."));
         registry.register(new BossUnlock("BRYOPHYTA", "Bryophyta", IconLoader.load("icon.png"), "Moss giant boss."));
         registry.register(new BossUnlock("GIANT_MOLE", "Giant Mole", IconLoader.load("icon.png"), "Boss beneath Falador."));
@@ -469,7 +470,6 @@ public final class UnlockDefinitions {
         registry.register(new BossUnlock("DK_PRIME", "Dagannoth Prime", IconLoader.load("icon.png"), "Dagannoth King."));
         registry.register(new BossUnlock("CORRUPTED_GAUNTLET", "Corrupted Gauntlet", IconLoader.load("icon.png"), "Hard mode Gauntlet."));
         registry.register(new BossUnlock("PHANTOM_MUSPAH", "Phantom Muspah", IconLoader.load("icon.png"), "Ancient ice boss."));
-
         registry.register(new BossUnlock("CHAOS_ELEMENTAL", "Chaos Elemental",IconLoader.load("icon.png"), "Wilderness boss."));
         registry.register(new BossUnlock("ARTIO", "Artio",IconLoader.load("icon.png"), "Callisto variant."));
         registry.register(new BossUnlock("CALVARION", "Calvar'ion", IconLoader.load("icon.png"), "Vet'ion variant."));
@@ -490,5 +490,6 @@ public final class UnlockDefinitions {
         registry.register(new BossUnlock("ARAXXOR", "Araxxor", IconLoader.load("icon.png"), "Spider boss."));
         registry.register(new BossUnlock("AMOXLIATL", "Amoxliatl", IconLoader.load("icon.png"), "Varlamore boss."));
         registry.register(new BossUnlock("HUEYCOATL", "The Hueycoatl", IconLoader.load("icon.png"), "Varlamore boss."));
+        */
     }
 }
