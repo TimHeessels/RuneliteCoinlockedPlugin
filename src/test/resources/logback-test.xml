@@ -52,5 +52,5 @@
 		<appender-ref ref="STDOUT"/>
 		<appender-ref ref="FILE"/>
 	</root>
-	<logger name="com.coinboundplugin" level="DEBUG" />
+	<logger name="com.coinlockedplugin" level="DEBUG" />
 </configuration>

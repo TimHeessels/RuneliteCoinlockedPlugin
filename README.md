@@ -1,8 +1,8 @@
-# Coinbound game mode
+# Coinlocked game mode
 Everything is locked, gather coins to choose what to unlock next!
 
 ## Gameplay
-You start off with next to nothing unlocked (Full list at the bottom of the page). With every new peak wealth reached, you may open a new booster pack of unlock cards and choose one, slowly unlocking the game one unlock at a time.
+You start off with next to nothing unlocked (Full list at the bottom of the page). With every new peak wealth reached, you may open a new booster pack of unlock cards and choose one, slowly unlocking the game one card at a time.
 
 ![chooseCard](assets/chooseCard.png)
 
