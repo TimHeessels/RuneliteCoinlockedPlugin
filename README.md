@@ -14,7 +14,7 @@ Some cards can only appear in packs when you reach their requirements.
 ![Requirements](assets/Requirements.png)
 
 ### Rules
-![Rules](assets/Rules.png)
+![Rules](assets/rules.png)
 
 ## Important note
 The plugin uses al-kharid flyers to block inventory spaces. At the start of the game mode (and whenever you carry too little of them) it will ask you to gather a certain amount.
