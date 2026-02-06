@@ -167,7 +167,7 @@ public class CoinlockedPlugin extends Plugin {
         return false; // TODO: Check if some items need to have a lock icon overlay
     }
 
-    //Formatted string listing new possible unlocks after an unlock is gained
+    // Formatted string listing new possible unlocks after an unlock is gained
     public String newPossibleUnlocksString = "";
 
     public List<Integer> ALCHEMY_WIDGETS = List.of(14286892, 14286869);
@@ -266,19 +266,19 @@ public class CoinlockedPlugin extends Plugin {
         // Build the panel
         swingPanel = new CoinboundPanel(this);
         navButton = NavigationButton.builder()
-                .tooltip("Roguelite")
+                .tooltip("Coinlocked")
                 .icon(ImageUtil.loadImageResource(getClass(), "/icon.png"))
                 .panel(swingPanel)
                 .build();
 
         clientToolbar.addNavigation(navButton);
 
-        log.debug("Roguelite plugin started!");
+        log.debug("Coinlocked plugin started!");
     }
 
     @Override
     protected void shutDown() throws Exception {
-        log.debug("Roguelite plugin stopped!");
+        log.debug("Coinlocked plugin stopped!");
         previousXp.clear();
 
         overlayManager.remove(overlay);
@@ -403,7 +403,7 @@ public class CoinlockedPlugin extends Plugin {
         for (PackOption option : currentPackOptions) {
             BufferedImage image = getOptionImageOrNull(option);
             if (image == null) {
-                //If there is any unlock not found, refund the pack and reset active option.
+                // If there is any unlock not found, refund the pack and reset active option.
                 refundPack();
                 return;
             }
@@ -466,7 +466,7 @@ public class CoinlockedPlugin extends Plugin {
     }
 
     void SetupCardButton(int buttonIndex, String unlockName, String typeName, String description, BufferedImage image,
-                         PackOption option) {
+            PackOption option) {
         cardPickOverlay.setButton(buttonIndex, unlockName, typeName, description, image, () -> {
             clientThread.invoke(() -> onPackOptionSelected(option));
         });
@@ -860,8 +860,7 @@ public class CoinlockedPlugin extends Plugin {
         return false;
     }
 
-    private static String readableListChat(List<String> items)
-    {
+    private static String readableListChat(List<String> items) {
         final int maxLength = 80;
 
         if (items == null)
@@ -879,8 +878,7 @@ public class CoinlockedPlugin extends Plugin {
         List<String> used = new ArrayList<>();
         int length = 0;
 
-        for (String item : cleaned)
-        {
+        for (String item : cleaned) {
             int extra = used.isEmpty() ? item.length()
                     : (used.size() == 1 ? 5 : 2) + item.length(); // " and " or ", "
 
@@ -894,22 +892,16 @@ public class CoinlockedPlugin extends Plugin {
         int remaining = cleaned.size() - used.size();
 
         String result;
-        if (used.size() == 1)
-        {
+        if (used.size() == 1) {
             result = used.get(0);
-        }
-        else if (used.size() == 2)
-        {
+        } else if (used.size() == 2) {
             result = used.get(0) + " and " + used.get(1);
-        }
-        else
-        {
+        } else {
             result = String.join(", ", used.subList(0, used.size() - 1))
                     + ", and " + used.get(used.size() - 1);
         }
 
-        if (remaining > 0)
-        {
+        if (remaining > 0) {
             String suffix = " and " + remaining + " more";
             if (result.length() + suffix.length() <= maxLength)
                 result += suffix;
@@ -1013,7 +1005,7 @@ public class CoinlockedPlugin extends Plugin {
         client.addChatMessage(
                 ChatMessageType.ENGINE,
                 "",
-                "[<col=6069df>Roguelite Mode</col>] " + message,
+                "[<col=6069df>Coinlocked</col>] " + message,
                 null);
         if (soundEffect != -1)
             client.playSoundEffect(soundEffect);

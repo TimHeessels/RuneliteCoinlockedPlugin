@@ -20,13 +20,8 @@ public class CoinboundPanel extends PluginPanel {
     private final CoinlockedPlugin plugin;
 
     private static final int UNLOCK_ICON_WIDTH = 25;
-    private final JButton buyButton = new JButton("Buy new pack");
     private final JPanel content = new JPanel();
-
     List<PackOptionButton> optionButtons = new ArrayList<>();
-
-    private JPanel rulesPanel;
-    private JPanel coinBracketsPanel;
     private Map<UnlockType, List<Unlock>> cachedByType;
     private JPanel unlocksContentPanel;
 
@@ -47,8 +42,6 @@ public class CoinboundPanel extends PluginPanel {
         wrapper.add(content, BorderLayout.NORTH);
 
         add(wrapper, BorderLayout.CENTER);
-
-        buyButton.addActionListener(e -> plugin.onBuyPackClicked());
 
         refresh();
     }
@@ -101,7 +94,6 @@ public class CoinboundPanel extends PluginPanel {
         content.add(Box.createVerticalStrut(6));
         content.add(coinBracketsPanel);
         content.add(Box.createVerticalStrut(12));
-
          */
 
         updateUnlocksSection(content, allUnlocks);

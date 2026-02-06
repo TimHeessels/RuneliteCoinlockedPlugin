@@ -5,6 +5,7 @@ import com.coinlockedplugin.data.PackChoiceState;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.input.MouseAdapter;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.ui.overlay.Overlay;
@@ -31,7 +32,6 @@ public class CardPickOverlay extends Overlay {
     private static final int PICKED_GAP_AFTER_CARD = 14;
     private static final int PICKED_UNLOCKED_MAX_LINES = 2;
     private static final int PICKED_GAP_AFTER_UNLOCKED = 12;
-
 
     private static final Color TYPE_COLOR = new Color(180, 160, 120);
     private static final Color PANEL_FILL = new Color(40, 32, 24, 240);
@@ -73,7 +73,8 @@ public class CardPickOverlay extends Overlay {
         setLayer(OverlayLayer.ABOVE_WIDGETS);
     }
 
-    public void setButton(int index, String label, String typeName, String description, BufferedImage image, Runnable callback) {
+    public void setButton(int index, String label, String typeName, String description, BufferedImage image,
+            Runnable callback) {
         if (index < 0 || index >= 4) {
             return;
         }
@@ -274,6 +275,10 @@ public class CardPickOverlay extends Overlay {
         if (!plugin.getConfig().showCardMenus()) {
             return null;
         }
+
+        if (isViewportBlockedByInterface())
+            return null;
+
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         int vpX = client.getViewportXOffset();
@@ -316,7 +321,8 @@ public class CardPickOverlay extends Overlay {
         int panelX = vpX + (vpWidth / 2) - (panelWidth / 2);
         int panelY = vpY + 50;
 
-        int panelHeight = BUTTON_SIZE + (PANEL_PADDING * 2) + BOTTOM_AREA_HEIGHT + HEADER_HEIGHT + (pickedIndex != null ? 40 : 0);
+        int panelHeight = BUTTON_SIZE + (PANEL_PADDING * 2) + BOTTOM_AREA_HEIGHT + HEADER_HEIGHT
+                + (pickedIndex != null ? 40 : 0);
 
         g.setColor(PANEL_FILL);
         g.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 10, 10);
@@ -328,7 +334,7 @@ public class CardPickOverlay extends Overlay {
         int buttonStartX = panelX + PANEL_PADDING;
         Point mouse = client.getMouseCanvasPosition();
 
-        //Header text
+        // Header text
         String headerText = pickedIndex == null ? "Choose a new unlock" : "Your new unlock!";
         g.setColor(TEXT_COLOR);
         g.setFont(new Font("SansSerif", Font.BOLD, 14));
@@ -337,11 +343,11 @@ public class CardPickOverlay extends Overlay {
         int headerY = panelY + PANEL_PADDING + headerFm.getAscent();
         g.drawString(headerText, headerX, headerY);
 
-        // Picked state: center card horizontally, then "Unlocked X", then Close button (all centered).
+        // Picked state: center card horizontally, then "Unlocked X", then Close button
+        // (all centered).
         if (pickedIndex != null) {
             int headerTextHeight = headerFm.getHeight();
 
-// Keep header, but ensure the card starts below it.
             int contentTopY = panelY + PANEL_PADDING + headerTextHeight + PICKED_GAP_AFTER_HEADER;
 
             int cardX = panelX + (panelWidth - BUTTON_SIZE) / 2;
@@ -351,7 +357,6 @@ public class CardPickOverlay extends Overlay {
 
             buttonBounds[i] = new Rectangle(cardX, cardY, BUTTON_SIZE, BUTTON_SIZE);
 
-// Card (unchanged drawing, just uses new cardY)
             g.setColor(BUTTON_FILL);
             g.fillRoundRect(cardX, cardY, BUTTON_SIZE, BUTTON_SIZE, 8, 8);
 
@@ -373,12 +378,11 @@ public class CardPickOverlay extends Overlay {
                 drawWrappedText(
                         g,
                         buttonLabels[i],
-                        cardX + (BUTTON_SIZE / 2), // center of the card
+                        cardX + (BUTTON_SIZE / 2),
                         cardY + BUTTON_SIZE - 40,
                         BUTTON_SIZE - 4,
-                        2,                         // maxLines (added)
-                        fm
-                );
+                        2,
+                        fm);
             }
 
             if (buttonTypeNames[i] != null) {
@@ -390,7 +394,6 @@ public class CardPickOverlay extends Overlay {
                 g.drawString(buttonTypeNames[i], typeX, typeY);
             }
 
-// Wrapped unlocked text (reserve exactly 2 lines)
             String unlockedText = plugin.newPossibleUnlocksString;
 
             g.setColor(TEXT_COLOR);
@@ -401,13 +404,11 @@ public class CardPickOverlay extends Overlay {
             int unlockedMaxWidth = panelWidth - (PANEL_PADDING * 2);
             int centerX = panelX + (panelWidth / 2);
 
-// Draw up to 2 wrapped lines
-            drawWrappedText(g, unlockedText, centerX, unlockedAreaTopY, unlockedMaxWidth, PICKED_UNLOCKED_MAX_LINES, unlockedFm);
+            drawWrappedText(g, unlockedText, centerX, unlockedAreaTopY, unlockedMaxWidth, PICKED_UNLOCKED_MAX_LINES,
+                    unlockedFm);
 
-// Compute reserved height for 2 lines, even if 1 line is used
             int unlockedReservedHeight = unlockedFm.getHeight() * PICKED_UNLOCKED_MAX_LINES;
 
-// Close button below reserved unlocked area
             int closeW = 90;
             int closeH = 26;
 
@@ -435,7 +436,6 @@ public class CardPickOverlay extends Overlay {
 
             return null;
         }
-
 
         String leftInfo = "Cards in deck: " + plugin.getPossibleUnlockablesCount();
         String rightInfo = "Restricted cards: " + plugin.getRestrictedUnlockablesCount();
@@ -501,18 +501,16 @@ public class CardPickOverlay extends Overlay {
                     g.drawImage(buttonImages[i], imgX, imgY, IMAGE_SIZE, IMAGE_SIZE, null);
                 }
 
-
                 if (buttonLabels[i] != null) {
                     g.setColor(TEXT_COLOR);
                     drawWrappedText(
                             g,
                             buttonLabels[i],
-                            buttonX + (BUTTON_SIZE / 2), // center of the card
+                            buttonX + (BUTTON_SIZE / 2),
                             buttonY + BUTTON_SIZE - 40,
                             BUTTON_SIZE - 4,
-                            2,                            // maxLines (added)
-                            fm
-                    );
+                            2,
+                            fm);
                 }
 
                 if (buttonTypeNames[i] != null) {
@@ -553,14 +551,16 @@ public class CardPickOverlay extends Overlay {
         g.setFont(new Font("SansSerif", Font.PLAIN, 11));
         FontMetrics descFm = g.getFontMetrics();
         int descX = panelX + (panelWidth - descFm.stringWidth(desc)) / 2;
-        int descY = panelY + PANEL_PADDING + HEADER_HEIGHT + BUTTON_SIZE + BOTTOM_AREA_HEIGHT / 2 + descFm.getAscent() / 2;
+        int descY = panelY + PANEL_PADDING + HEADER_HEIGHT + BUTTON_SIZE + BOTTOM_AREA_HEIGHT / 2
+                + descFm.getAscent() / 2;
         g.drawString(desc, descX, descY);
 
         closeButtonBounds = null;
         return null;
     }
 
-    private void drawWrappedText(Graphics2D g, String text, int centerX, int yTop, int maxWidth, int maxLines, FontMetrics fm) {
+    private void drawWrappedText(Graphics2D g, String text, int centerX, int yTop, int maxWidth, int maxLines,
+            FontMetrics fm) {
         if (text == null || text.isBlank() || maxLines <= 0) {
             return;
         }
@@ -573,13 +573,11 @@ public class CardPickOverlay extends Overlay {
             String candidate = current.length() == 0 ? word : current + " " + word;
 
             if (fm.stringWidth(candidate) <= maxWidth) {
-                // Keep accumulating words on the current line.
                 current.setLength(0);
                 current.append(candidate);
                 continue;
             }
 
-            // Candidate does not fit: commit current line if present.
             if (current.length() > 0) {
                 lines.add(current.toString());
                 if (lines.size() >= maxLines) {
@@ -587,8 +585,6 @@ public class CardPickOverlay extends Overlay {
                 }
                 current.setLength(0);
             }
-
-            // Start a new line with this word (even if it alone exceeds maxWidth).
             current.append(word);
         }
 
@@ -605,5 +601,46 @@ public class CardPickOverlay extends Overlay {
             g.drawString(line, x, y);
             y += lineHeight;
         }
+    }
+
+    private boolean isViewportBlockedByInterface() {
+        // Viewport (center game area)
+        final Rectangle viewport = new Rectangle(
+                client.getViewportXOffset(),
+                client.getViewportYOffset(),
+                client.getViewportWidth(),
+                client.getViewportHeight());
+
+        // Skip invalid ones
+        if (viewport.width <= 0 || viewport.height <= 0) {
+            return true;
+        }
+
+        final Widget[] roots = client.getWidgetRoots();
+        if (roots == null) {
+            return false;
+        }
+
+        for (Widget w : roots) {
+            if (w == null || w.isHidden()) {
+                continue;
+            }
+
+            final Rectangle b = w.getBounds();
+            if (b == null || !b.intersects(viewport)) {
+                continue;
+            }
+
+            // How much of the viewport is covered?
+            Rectangle inter = b.intersection(viewport);
+            double covered = (inter.getWidth() * inter.getHeight()) / (viewport.getWidth() * viewport.getHeight());
+
+            // Block card overlay for big interfaces
+            if (covered >= 0.25) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
